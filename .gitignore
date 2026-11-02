@@ -1,0 +1,66 @@
+# ---------------------------------------------------------------------------
+# Data & keluaran turunan: TIDAK BOLEH masuk repo.
+#
+# Isinya data pribadi (foto subjek, tinggi, berat) dan hasil olahannya. Sekali
+# ter-commit, riwayatnya ada di semua clone dan tidak bisa dihapus dengan
+# aman. `git rm` tidak cukup: history-nya masih menyimpan.
+#
+# PENTING soal sintaks: yang diabaikan adalah `data/*`, BUKAN `data/`.
+# Git tidak pernah masuk ke direktori yang diabaikan, jadi negasi di
+# dalamnya (seperti !data/labels_template.csv) akan DIABAIKAN dan template
+# ikut hilang. Karena itu polanya: tolak isi, lalu buka kembali per berkas.
+# ---------------------------------------------------------------------------
+
+# Data asli
+data/*
+# ...tapi template boleh ikut repo (dipakai whoever baru clone)
+!data/labels_template.csv
+# Folder gambar tetap ada di repo (kosong) supaya fresh clone langsung siap
+!data/images/
+# ...tapi isinya tetap tertutup
+data/images/*
+!data/images/.gitkeep
+# Tabel WHO adalah data REFERENSI publik, bukan data subjek. Tanpa ini
+# scripts/extract_dataset.py berhenti di clone baru (sengaja: tanpa L/M/S
+# asli, label anak-anak mustahil dihitung dengan benar).
+!data/who/
+
+# Laporan atas data asli
+reports/
+
+# Data sintetis untuk menguji pipeline: 12 MB gambar hasil render, tidak
+# berguna di repo. README-nya tetap ikut supayanalasan exclusion ikut
+# terdokumentasi.
+data_synthetic/*
+!data_synthetic/README.md
+reports_synthetic/
+
+# Sisa Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Model (hasil download_model.py, ~3 MB, diambil ulang dengan skrip)
+models/
+*.task
+
+# Environment lokal (dibaca app/settings.py): path model, batas upload, mode CV.
+# Berisi nilai spesifik mesin -> jangan ikut repo.
+# .env.example adalah templatnya dan tetap masuk (namanya memang beda).
+.env
+
+# Backup database (mis. `make backup`) berisi data subjek -> jangan ikut repo.
+backup_*.sql
+*.dump
+*.sql.gz
+
+# OS
+.DS_Store
+Thumbs.db

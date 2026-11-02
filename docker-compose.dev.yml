@@ -1,0 +1,14 @@
+# Override DEV opsional (TIDAK aktif otomatis).
+#
+# Dipakai untuk memetakan port Postgres ke localhost supaya bisa diakses alat
+# database lokal (psql, DBeaver, dll). Default docker-compose.yml sengaja
+# TIDAK mempublikasikan port ini.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# Karena namanya bukan docker-compose.override.yml, file ini tidak ikut
+# ter-merge otomatis saat `docker compose up` biasa.
+services:
+  db:
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"

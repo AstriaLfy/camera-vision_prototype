@@ -1,0 +1,162 @@
+# ---------------------------------------------------------------------------
+# docker-compose untuk skrining-malnutrisi-cv.
+#
+# Struktur sengaja modular supaya menambah service baru (auth, profil, subjek,
+# sync, worker) cukup menambah blok `services.<nama>` dan menempelkan
+# `<<: [*app-build, *app-env]` serta `networks: [internal]` -- service lama
+# tidak perlu diubah.
+#
+# Menjalankan:
+#   docker compose up -d --build                 # api + db + migrate
+#   docker compose --profile tunnel up -d        # + ngrok (butuh NGROK_AUTHTOKEN)
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d   # + db port ke localhost
+#   docker compose --profile test up -d db-test  # Postgres sekali pakai untuk test
+# ---------------------------------------------------------------------------
+
+name: cv-prototype
+
+# --- Blok bersama untuk service aplikasi (di-mount lewat YAML anchor) ------
+x-app-build: &app-build
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      # Kosong secara default: model TIDAK diunduh saat build. Isi hanya bila
+      # punya URL model resmi. Cara utama: volume ./models (lihat `api.volumes`).
+      MODEL_URL: ${MODEL_URL:-}
+  image: cv-prototype-api:local
+
+x-app-env: &app-env
+  env_file:
+    # .env OPSIONAL: tanpa file itu, semua default di app/settings.py dipakai.
+    - path: .env
+      required: false
+
+services:
+  # -------------------------------------------------------------------------
+  # Database produksi/dev. TIDAK mempublikasikan port ke host supaya tidak
+  # bisa diakses dari luar jaringan compose. Untuk alat DB lokal, pakai
+  # docker-compose.dev.yml (memetakan 127.0.0.1:5432).
+  # -------------------------------------------------------------------------
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ganti-ini}
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - internal
+
+  # -------------------------------------------------------------------------
+  # Migrasi satu kali jalan: `alembic upgrade head`, lalu container berhenti.
+  # api baru start setelah service ini sukses (service_completed_successfully).
+  # -------------------------------------------------------------------------
+  migrate:
+    <<: [*app-build, *app-env]
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-ganti-ini}@db:5432/${POSTGRES_DB:-app}}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+
+  # -------------------------------------------------------------------------
+  # API. Port HANYA dipetakan ke 127.0.0.1 (localhost host), bukan 0.0.0.0,
+  # supaya tidak terbuka ke LAN. Akses dari perangkat lain lewat ngrok
+  # (profil "tunnel"), bukan dengan membuka port ke semua antarmuka.
+  # -------------------------------------------------------------------------
+  api:
+    <<: [*app-build, *app-env]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-ganti-ini}@db:5432/${POSTGRES_DB:-app}}
+      WEB_WORKERS: ${WEB_WORKERS:-1}
+      # Uvicorn hanya mempercayai X-Forwarded-* dari subnet jaringan compose.
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-172.28.0.0/16}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    volumes:
+      # Model FaceLandmarker: (a) volume ke MODEL_PATH. Read-only: aplikasi
+      # tidak pernah menulis model. Bila folder host kosong, layanan tetap
+      # hidup dan /api/v1/health melaporkan model_available=false.
+      - ./models:/app/models:ro
+    networks:
+      - internal
+
+  # -------------------------------------------------------------------------
+  # Postgres terpisah untuk test suite. TANPA volume persisten (tmpfs), jadi
+  # datanya hilang saat container berhenti. Profil "test" supaya tidak ikut
+  # `up` biasa.
+  # -------------------------------------------------------------------------
+  db-test:
+    image: postgres:16
+    profiles: ["test"]
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d test"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+    networks:
+      - internal
+
+  # -------------------------------------------------------------------------
+  # ngrok: meneruskan URL publik ke api:8000. TIDAK jalan kecuali profil
+  # "tunnel" diminta. Authtoken dari NGROK_AUTHTOKEN (env), tidak pernah
+  # ditulis ke file yang di-commit. Sintaks flag `--url` = sintaks ngrok
+  # agent v3 (--domain sudah deprecated).
+  # -------------------------------------------------------------------------
+  ngrok:
+    image: ngrok/ngrok:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    command:
+      - "http"
+      - "--url=${NGROK_DOMAIN:-jaws-hurler-unranked.ngrok-free.dev}"
+      - "api:8000"
+      - "--log=stdout"
+    ports:
+      # Dashboard inspeksi ngrok: bind ke localhost saja.
+      - "127.0.0.1:4040:4040"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - internal
+
+networks:
+  internal:
+    name: cv-prototype-internal
+    driver: bridge
+    ipam:
+      config:
+        # Subnet tetap dipakai FORWARDED_ALLOW_IPS uvicorn (lihat Dockerfile).
+        - subnet: 172.28.0.0/16
+
+volumes:
+  pgdata:
+    name: cv-prototype-pgdata

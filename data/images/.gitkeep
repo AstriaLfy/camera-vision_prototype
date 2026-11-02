@@ -1,0 +1,7 @@
+# Folder ini sengaja kosong.
+#
+# Git tidak menyimpan folder kosong, jadi file .gitkeep ini yang membuatnya
+# ikut ter-version control.
+#
+# Isi folder ini = foto subjek (data pribadi) dan TIDAK boleh masuk repo;
+# sudah ditutup oleh .gitignore.

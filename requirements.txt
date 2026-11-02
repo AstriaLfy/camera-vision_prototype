@@ -1,0 +1,52 @@
+# Versi di-pin. Jangan asal naik: prototype ini terlihat jalan normal tapi
+# gagal karena perbedaan versi (mis. numpy butuh cp314 wheel, dan mediapipe
+# menarik opencv-contrib-python yang BENTROK dengan opencv-python-headless).
+#
+# Target runtime yang sudah diverifikasi: Python 3.14.
+numpy==2.5.3
+
+# PENTING: mediapipe menuntut opencv-contrib-python. Memakai
+# opencv-python-headless (yang ada di requirements versi lama) menyebabkan
+# dua distribusi OpenCV terpasang bersamaan -> import cv2 bisa gagal atau
+# modul cv2 yang termuat tidak lengkap.
+# Jangan turunkan ke 4.x: 4.x mengunci numpy<2.3, sedangkan wheel numpy
+# untuk cp314 baru mulai 2.3.2 -> pip akan mencoba build numpy dari source
+# dan gagal. 5.0.0.93 adalah versi yang kompatibel dengan numpy 2.5.3.
+opencv-contrib-python==5.0.0.93
+
+mediapipe==1.0.1
+
+fastapi==0.121.2
+uvicorn[standard]==0.40.0
+python-multipart==0.0.20
+
+# Konfigurasi layanan (app/settings.py): mode CV, batas upload, path model
+# dibaca dari environment / file .env, bukan di-hardcode di router.
+pydantic-settings==2.15.0
+
+# ---------------------------------------------------------------------------
+# Database & migrasi (Docker/Postgres). psycopg 3 = driver `postgresql+psycopg`
+# di DATABASE_URL; SQLAlchemy dipakai Alembic; alembic menjalankan `upgrade
+# head` di service `migrate`. Versi di atas semua punya wheel cp314, jadi pip
+# tidak membangun dari source.
+# ---------------------------------------------------------------------------
+psycopg[binary]==3.3.6
+SQLAlchemy==2.1.4
+alembic==1.20.0
+
+# Dibutuhkan app/main.py untuk menerapkan orientasi EXIF pada foto HP
+# (cv2.imdecode mengabaikan EXIF -> foto portrait diproses miring).
+pillow==12.1.0
+
+# EDA (scripts/eda.py): korelasi Spearman, Mann-Whitney U, koreksi BH
+scipy==1.18.1
+pandas==3.0.6
+
+# Test
+pytest==8.4.2
+
+# TestClient FastAPI butuh httpx
+httpx==0.28.1
+
+# scripts/extract_dataset.py
+tqdm==4.67.1

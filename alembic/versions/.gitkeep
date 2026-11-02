@@ -1,0 +1,5 @@
+# Folder revisi Alembic.
+#
+# Sengaja kosong: belum ada skema tabel (lihat docs/prd/00-index.md). Setiap
+# file revisi di sini adalah satu langkah migrasi. Jangan mengisi skema
+# karangan -- model tabel ditentukan saat fitur terkait dikerjakan.

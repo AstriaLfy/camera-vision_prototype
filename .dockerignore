@@ -1,0 +1,41 @@
+# Konteks build Docker: kirim hanya yang perlu (kode + requirements).
+# Rahasia, data pribadi, dan artefak besar TIDAK boleh masuk konteks.
+
+# Rahasia / konfigurasi lokal
+.env
+
+# Virtualenv lokal (dependency dipasang ulang di dalam image)
+venv/
+.venv/
+
+# Data asli & keluaran (foto subjek, labels, laporan) -- PII
+data/
+data_synthetic/
+reports/
+reports_synthetic/
+
+# Test tidak dibundel ke image produksi (dijalankan lewat bind-mount di Makefile)
+tests/
+
+# Kontrol versi & cache Python
+.git/
+.gitignore
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Model diunduh lewat volume atau build arg MODEL_URL, bukan dari konteks
+models/*.task
+
+# Berkas deploy/IDE tidak perlu di dalam image
+Dockerfile
+docker-compose*.yml
+.dockerignore
+Makefile
+README.md
+docs/
